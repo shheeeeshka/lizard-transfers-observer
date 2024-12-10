@@ -1,8 +1,17 @@
+import express from "express";
 import { google } from "googleapis";
 import { config } from "dotenv";
 import axios from "axios";
 
 config();
+
+const app = express();
+
+try {
+    app.listen(5060, () => console.log("Running on port 5060"));
+} catch (err) {
+    console.error(err.message);
+}
 
 const auth = new google.auth.GoogleAuth({
     keyFile: "credentials.json",
@@ -20,13 +29,19 @@ const metaData = await googleSheets.spreadsheets.get({
     spreadsheetId: spreadsheetId1,
 }).catch((err) => console.error(err.message));
 
-const { data } = await googleSheets.spreadsheets.values.get({
-    auth,
-    spreadsheetId: spreadsheetId1,
-    range: "Лист1!A:W",
-}).catch((err) => console.error(err.message));
+let lastRowCount = 0;
 
-let lastRowCount = data.values ? data.values.length : 0;
+try {
+    const { data } = await googleSheets.spreadsheets.values.get({
+        auth,
+        spreadsheetId: spreadsheetId1,
+        range: "Лист1!A:W",
+    }).catch((err) => console.error(err.message));
+    lastRowCount = data.values ? data.values.length : 0;
+} catch (err) {
+    console.error(err.message);
+}
+
 
 async function checkForNewRequests() {
     const { data } = await googleSheets.spreadsheets.values.get({
@@ -52,6 +67,8 @@ async function checkForNewRequests() {
         });
     }
     lastRowCount = currentRowCount;
+    await axios.get(`${process.env.BOT_URL}/keep-alive`).catch(err => console.error(err.message));
+    await axios.get(`${process.env.MAILING_SERVICE_URL}/keep-alive`).catch(err => console.error(err.message));
 }
 
 setInterval(checkForNewRequests, 1500);
